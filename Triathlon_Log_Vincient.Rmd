@@ -1,0 +1,182 @@
+---
+title: "Triathlon Training -- Vincient"
+output:
+  html_notebook: default
+  pdf_document: default
+  word_document: default
+---
+
+##### This is a program I have written to track progress in a training program for a triathlon. The program utilizes user input functions to input data, data frames to store data, and the Tidyverse 'ggplot2' package to visualize data, relying heavily on color scales and gradients to illustrate changes in variable values. 
+
+###### Below is the section pertaining to run, bike, and swim training. Following below is the section (demarcated) that tracks lifting progress. 
+
+```{r}
+library(ggplot2)
+library(ggthemes)
+library(dplyr)
+triathlon.training <- readRDS("/Users/vincientarnold/triathlon.training.rds")
+# above to recreate, simply create a file of your own and copy in the path here ^^ 
+```
+
+```{r}
+has_NAs <- triathlon.training[!complete.cases(triathlon.training),]
+last_entry <- (as.numeric(has_NAs[1,7]) -1 ) 
+cat(sprintf("Your last entry was: %s\n", last_entry))
+```
+
+```{r}
+i.ask <- function()
+{i.value <- readline("What entry is this? Enter integer value: ")
+return(as.integer(i.value))
+}
+i <- i.ask()
+```
+
+```{r}
+date.ask <- function() 
+{ date.value <- readline("What is the date? Enter is mmddyyyy format: " )
+return(as.integer(date.value))
+}
+date <- date.ask()
+```
+
+```{r}
+triathlon.training[i,][1] <- date 
+```
+
+```{r}
+exercise.ask <- function() 
+{ exercise.value <- readline("What was the workout type? bike, swim, or run: " )
+return(exercise.value)
+}
+exercise <- exercise.ask()
+```
+
+```{r}
+triathlon.training[i,][2] <- exercise 
+```
+
+```{r}
+distance.ask <- function() 
+{ distance.value <- readline("What was your total distance (miles for run and bike, meters for swim) : " )
+return(as.numeric(distance.value))
+}
+distance <- distance.ask()
+```
+
+```{r}
+triathlon.training[i,][3] <- distance
+```
+
+```{r}
+minutes.ask <- function() 
+{ minutes.value <- readline("What was your time (minutes)? Enter an integer: " )
+return(as.numeric(minutes.value))
+}
+
+seconds.ask <- function() 
+{ seconds.value <- readline("What was your time (seconds)? Enter an integer: " )
+return(as.numeric(seconds.value))
+}
+
+time <- (( minutes.ask()*60 ) + (seconds.ask()) ) / 60 
+```
+
+```{r}
+triathlon.training[i,][4] <- time
+```
+
+```{r}
+triathlon.training[i,][5] <- (triathlon.training[i,][4])/(triathlon.training[i,][3])
+```
+
+```{r}
+terrain.ask <- function() 
+{ terrain.value <- readline("What was the terrain? : " )
+return(terrain.value)
+}
+terrain <- terrain.ask()
+```
+
+```{r}
+triathlon.training[i,][6] <- terrain
+```
+
+```{r}
+triathlon.training
+#triathlon.training$Entry
+```
+
+```{r}
+saveRDS(triathlon.training, "/Users/vincientarnold/triathlon.training.rds")
+```
+
+```{r}
+running <- triathlon.training[which(triathlon.training$Exercise=="run"),]
+running[,8] <- c(1:length(running$Date))
+colnames(running) <- c("Date", "Exercise","Distance","Time","Pace","Terrain","Entry","Run Entry")
+running
+```
+
+```{r}
+biking <- triathlon.training[which(triathlon.training$Exercise=="bike"),]
+biking[,8] <- c(1:length(biking$Date))
+colnames(biking) <- c("Date", "Exercise","Distance","Time","Pace","Terrain","Entry","Bike Entry")
+biking
+```
+
+```{r}
+swimming <- triathlon.training[which(triathlon.training$Exercise=="swim"),]
+swimming[,8] <- c(1:length(swimming$Date))
+colnames(swimming) <- c("Date", "Exercise","Distance","Time","Pace","Terrain","Entry","Swim Entry")
+swimming
+```
+
+```{r}
+trendline.ask <- function()
+{trendline.value <- readline("Would you like a trendline on the display? Yes or No?")
+return(trendline.value)
+}
+trendline <- trendline.ask()
+
+theme_set(theme_bw())
+
+if(trendline == "No"){
+run_plot <- ggplot(running, aes(x = running$`Run Entry`, y = Pace, colour = Distance, shape = Terrain)) + 
+  geom_point() + labs(title="Running Data", x="Run Entry", y="Pace (min/mile)") 
+run_plot  
+} else {
+  run_plot <- ggplot(running, aes(x = running$`Run Entry`, y = Pace)) + 
+  geom_point() + labs(title="Running Data", x="Run Entry", y="Pace (min/mile)") + geom_smooth(data = running, method = "lm")
+run_plot 
+}
+
+run_plot <- ggplot(running, aes(x = running$`Run Entry`, y = Pace, colour = Distance)) + 
+  geom_point() + labs(title="Running Data", x="Run Entry", y="Pace (min/mile)") + facet_grid(.~Terrain)
+run_plot
+```
+
+```{r}
+bike_plot <- ggplot(biking, aes(x = biking$`Bike Entry`, y = Pace, colour = Distance, shape=Terrain)) + 
+  geom_point() + labs(title = "Biking Data", x = "Bike Entry",y = "Pace (min/mile)")
+bike_plot
+```
+
+```{r}
+swim_plot <- ggplot(swimming, aes(x = swimming$`Swim Entry`, y = Pace, colour = Distance, shape=Terrain)) + 
+  geom_point() + labs(title = "Swimming Data", x = "Swim Entry", y = "Pace (min/meter)")
+swim_plot
+
+swim_plot <- ggplot(swimming, aes(x = swimming$`Swim Entry`, y = Pace, colour = Distance)) + 
+  geom_point() + labs(title = "Swimming Data", x = "Swim Entry", y = "Pace (min/meter)") + facet_grid(.~Terrain)
+swim_plot
+```
+
+
+
+
+
+
+
+
+
