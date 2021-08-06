@@ -1,0 +1,165 @@
+---
+title: "Data Viz - House Price Index and Interest Rates"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+# PACKAGE INSTALL
+# Here just grabbing all the useful/relevant packages we might need 
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(reshape)
+library(lubridate)
+library(tidyr)
+```
+
+```{r}
+## DATA LOADING
+# Here just getting the data we pulled from FRED
+working_dir  <- setwd("~/Documents/Blog, Writing/Data Viz Housing Price Index/Data/")
+case_shiller <- read.csv(file = "~/Documents/Blog, Writing/Data Viz Housing Price Index/Data/CSUSHPINSA.csv")
+rate_index   <- read.csv(file = "~/Documents/Blog, Writing/Data Viz Housing Price Index/Data/DGS10.csv")
+case_shiller   # notice that the date is stored as a factor 
+rate_index     # notice that the date is stored as a factor AND the data itself is a factor
+```
+
+
+```{r}
+## DATA CLEANING  
+# Here we're cleaning up the data, making everything into the right format.
+
+# casting date columns from factor to date 
+case_shiller$DATE <- as.Date(case_shiller$DATE, format = "%Y-%m-%d") 
+rate_index$DATE   <- as.Date(rate_index$DATE, format = "%Y-%m-%d")    
+
+# casting index columns from double and factor to integer 
+case_shiller$CSUSHPINSA <- as.integer(case_shiller$CSUSHPINSA)
+rate_index$DGS10        <- as.integer(as.numeric(as.character(rate_index$DGS10)))
+
+# scaling/standardizing our data 
+case_shiller_st <- scale(case_shiller$CSUSHPINSA)
+rate_index_st   <- scale(rate_index$DGS10)
+
+# combining standardized index columns with original date columns 
+CS <- data.frame(case_shiller$DATE, case_shiller_st)
+colnames(CS) <- c("Date", "CS Index")
+RI <- data.frame(rate_index$DATE, rate_index_st)
+colnames(RI) <- c("Date", "Rates Index")
+# RI
+# CS
+
+# getting monthly averages for the Rates Index (since it was given daily)
+RI["Year"]  <- year(RI$Date)     # creating a year column
+RI["Month"] <- month(RI$Date)    # creating a month column 
+RI <- group_by(RI, Year, Month)  # now we've got just one observation per month
+RI <- summarise(RI, result = mean(`Rates Index`, na.rm=TRUE) ) # there are a few N/A values here we need to ignore 
+colnames(RI) <- c("Year", "Month", "Monthy Avg. Rate Index")   # now we have a dataframe of the monthly avg for the scaled rate index
+
+# converting RI dates to actual date format
+RI["Day"] <- 01 # adding the day number here since it's just an avg for the month and we want consistency with CS index
+my_cols   <- c("Year", "Month", "Day")
+RI["String Date"] <- do.call(paste, c(RI[my_cols], sep = "-"))   # this is concatenating the day month and year into one date
+RI["Full Date"]   <- as.Date(RI$`String Date`)                   # this is bringing us back into date type format        
+
+# narrowing down RI to what we actually need
+RI <- data.frame(RI$`Full Date`, RI$`Monthy Avg. Rate Index`)
+colnames(RI) <- c('Date','Rate Index')
+
+
+# verifying the changes made 
+#plot(CS$Date, CS$Index) # just to take a peak
+#plot(case_shiller)
+#plot(RI)               # just to take a peak 
+#plot(rate_index)
+```
+
+```{r}
+## DATA CLEANING CONT.: STANDARDIZING DATAFRAME LENGTHS
+# trimming down RI to the same date range as the Case Shiller index 
+RI.new <- RI %>% 
+ filter(Date >= "1987-01-01" & Date <= "2021-03-01")  # ensuring the same coverage and dimenstions as the CS index 
+```
+
+```{r}
+## DATA MERGING
+# Here we'll go ahead and do an inner merge on our two data frames using date as the common variable
+data <- merge(CS, RI.new, by="Date")  # inner merge on date
+```
+
+```{r}
+## CORRELATION 
+cor(data$`CS Index`, data$`Rate Index`)
+```
+
+```{r}
+## DATA VISULIZATION 
+# Here we'll go ahead and finally plot our data using ggplot2 
+
+theme_set(theme_solarized_2())  # setting defualt theme, which we'll revise below
+
+plot <- ggplot() +
+  geom_line(data = data, aes(x=Date, y=`CS Index`), color = 'steelblue4') +     # Case Shiller index
+  geom_line(data = data, aes(x=Date, y=`Rate Index`), color = 'cadetblue3') +   # Fed. Rates index 
+  
+  # adding in some annotations below
+  annotate("text", x=as.Date("2018-06-01"), y = -0.4, label = "Pearson's R = -0.85", size = 3.5) + 
+  annotate("text", x=as.Date("2005-01-02"), y = 1.35, label = "Case-Shiller Index", size = 3.0, color = 'steelblue4') + 
+  annotate("text", x=as.Date("1994-01-01"), y = -0.4, label = "Rate Index", size = 3.0, color= 'cadetblue3') + 
+  
+     # Labels :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+  labs(y="Scaled Indices (z-score)", 
+       x = "Date", 
+       title = "Fed Interest Rate Index vs. Housing Price Index, Scaled", 
+       subtitle = "Opposites Attract", caption ="Source: Federal Reserve Bank of St. Louis",
+       color = "Legend") + 
+
+  
+   theme(  
+     
+     # Background :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+     panel.background = element_rect(fill = "ivory1", colour = "ivory1", size = 0.5, linetype = "solid"), 
+     plot.background = element_rect(fill = "ivory1", colour = "ivory1", size = 0.5, linetype = "solid"),
+     
+     # Grid Lines :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+     panel.grid.major = element_line(colour="gray80", size = 0.25),
+     panel.grid.minor = element_line(colour="gray80", size = 0.1),
+     axis.line = element_line(size = 0.25, linetype = "solid", colour = "gray80"), 
+     axis.text = element_text(size = 8 , colour = "grey23"),  # so it matches the other text on the graphic 
+     
+     # Titles, captions and stuff ::::::::::::::::::::::::::::::::::::::::::::::::::
+     plot.title = element_text(family=, face='bold', color = 'grey23', size=), 
+     plot.subtitle = element_text(family=, face='italic', color = 'grey23', size=10), 
+     axis.title.x = element_text(family=, face=, color = 'grey23', size=), 
+     axis.title.y = element_text(family=, face=, color = 'grey23', size=), 
+     plot.caption = element_text(family=, face='italic', color = 'grey23', size=9), 
+     
+     
+     ) 
+ 
+
+plot  # to run the actual plot! 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
